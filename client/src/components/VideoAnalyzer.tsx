@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { VideoAnalyzerSimplified, type DrillAnalysis } from '@/lib/videoAnalyzerSimplified';
+import { VideoLoopCreator } from '@/lib/videoLoopCreator';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -26,6 +27,7 @@ export default function VideoAnalyzerComponent({
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const analyzerRef = useRef<VideoAnalyzerSimplified | null>(null);
+  const loopCreatorRef = useRef<VideoLoopCreator | null>(null);
 
   useEffect(() => {
     const url = URL.createObjectURL(videoFile);
@@ -35,8 +37,9 @@ export default function VideoAnalyzerComponent({
   }, [videoFile]);
 
   useEffect(() => {
-    // Initialize analyzer
+    // Initialize analyzer and loop creator
     analyzerRef.current = new VideoAnalyzerSimplified();
+    loopCreatorRef.current = new VideoLoopCreator();
   }, []);
 
   const handleAnalyze = async () => {
@@ -46,19 +49,25 @@ export default function VideoAnalyzerComponent({
     setProgress(0);
 
     try {
-      console.log('Starting simplified video analysis...');
+      console.log('Starting REAL video analysis...');
       
-      // Use simplified analyzer
+      // Progress simulation for UI feedback
+      const progressInterval = setInterval(() => {
+        setProgress(prev => Math.min(prev + 5, 90));
+      }, 200);
+      
+      // Use real analyzer
       const result = await analyzerRef.current.analyzeVideo(videoFile);
       
+      clearInterval(progressInterval);
       setProgress(100);
       setAnalysis(result);
       
-      console.log('Analysis completed:', result);
+      console.log('Real analysis completed:', result);
       
-      // Auto-process if we have results
-      if (result.duration > 0) {
-        console.log('Processing video based on analysis');
+      // Auto-process if we found repetitions or have valid duration
+      if (result.repetitions > 0 || result.duration > 3) {
+        console.log('Creating real video loop based on analysis');
         await handleProcessVideo(result);
       }
 
@@ -72,38 +81,42 @@ export default function VideoAnalyzerComponent({
   };
 
   const handleProcessVideo = async (analysisData: DrillAnalysis) => {
-    if (!analysisData) return;
+    if (!analysisData || !loopCreatorRef.current) return;
 
     setIsProcessing(true);
     setProgress(0);
 
     try {
-      console.log('Simulating video processing...');
+      console.log('Creating REAL video loop...');
       
-      // Simulate processing with progress updates
-      await new Promise<void>((resolve) => {
-        let currentProgress = 0;
-        const interval = setInterval(() => {
-          currentProgress += 20;
-          setProgress(currentProgress);
-          
-          if (currentProgress >= 100) {
-            clearInterval(interval);
-            resolve();
-          }
-        }, 200); // Update every 200ms
-      });
+      // Convert frame indices to seconds
+      const startTime = analysisData.loopStart / 10; // loopStart is in frame index * 10
+      const endTime = analysisData.loopEnd / 10;     // loopEnd is in frame index * 10
       
-      // For now, just use the original video
-      const processedVideo = videoFile;
+      console.log(`Creating loop from ${startTime}s to ${endTime}s`);
       
-      // Create a simple thumbnail (just a placeholder for now)
-      const thumbnail = new Blob(['thumbnail'], { type: 'image/jpeg' });
-
-      // Use original video URL
-      setProcessedVideoUrl(previewUrl);
+      // Create the actual video loop
+      const processedVideo = await loopCreatorRef.current.createLoop(
+        videoFile,
+        startTime,
+        endTime,
+        (progress) => setProgress(progress)
+      );
       
-      console.log('Calling onAnalysisComplete...');
+      // Create a real thumbnail from the middle of the loop
+      const thumbnailTime = (startTime + endTime) / 2;
+      const thumbnail = await loopCreatorRef.current.createThumbnail(
+        videoFile,
+        thumbnailTime
+      );
+      
+      // Create URL for the processed video
+      const processedUrl = URL.createObjectURL(processedVideo);
+      setProcessedVideoUrl(processedUrl);
+      
+      console.log('Real loop created successfully');
+      console.log(`Loop size: ${(processedVideo.size / 1024 / 1024).toFixed(2)}MB`);
+      console.log(`Thumbnail size: ${(thumbnail.size / 1024).toFixed(2)}KB`);
       
       // Call onAnalysisComplete which should move to the form step
       onAnalysisComplete(analysisData, processedVideo, thumbnail);
