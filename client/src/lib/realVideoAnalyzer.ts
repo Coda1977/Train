@@ -69,8 +69,8 @@ export class RealVideoAnalyzer {
   }
 
   private async extractFrames(video: HTMLVideoElement): Promise<void> {
-    const frameRate = 5; // Extract 5 frames per second
-    const totalFrames = Math.min(Math.ceil(video.duration * frameRate), 150); // Max 150 frames
+    const frameRate = 10; // Extract 10 frames per second for better detail
+    const totalFrames = Math.min(Math.ceil(video.duration * frameRate), 300); // Max 300 frames
     const interval = video.duration / totalFrames;
     
     console.log(`Extracting ${totalFrames} frames...`);
@@ -218,33 +218,78 @@ export class RealVideoAnalyzer {
   }
 
   private findRepetitions(): number[][] {
-    const repetitions: number[][] = [];
-    const windowSize = Math.max(10, Math.floor(this.frames.length / 10)); // Adaptive window
-    const threshold = 0.8; // 80% similarity threshold
+    const allRepetitions: number[][] = [];
     
-    console.log(`Looking for repetitions with window size ${windowSize}...`);
+    // Try different window sizes to catch different drill speeds
+    const windowSizes = [
+      Math.floor(this.frames.length / 15), // Short reps
+      Math.floor(this.frames.length / 10), // Medium reps
+      Math.floor(this.frames.length / 5),  // Long reps
+    ].filter(w => w >= 5); // Minimum 5 frames
     
-    for (let i = 0; i < this.frames.length - windowSize * 2; i += 5) {
-      // Get hash pattern for this window
-      const pattern1 = this.frames.slice(i, i + windowSize).map(f => f.hash);
+    console.log(`Trying window sizes: ${windowSizes}`);
+    
+    for (const windowSize of windowSizes) {
+      const threshold = 0.75; // Slightly lower threshold for better detection
+      const motionThreshold = 0.05; // Minimum motion to be considered active
       
-      // Look for similar patterns later in video
-      for (let j = i + windowSize; j < this.frames.length - windowSize; j += 5) {
-        const pattern2 = this.frames.slice(j, j + windowSize).map(f => f.hash);
+      // Find all potential cycle starts (high motion after low motion)
+      const cycleStarts: number[] = [];
+      for (let i = 1; i < this.frames.length - 1; i++) {
+        const prevMotion = this.frames[i - 1].motion;
+        const currMotion = this.frames[i].motion;
+        const nextMotion = this.frames[i + 1].motion;
         
-        const similarity = this.comparePatterns(pattern1, pattern2);
+        // Detect motion increase (potential rep start)
+        if (prevMotion < motionThreshold && currMotion > motionThreshold && nextMotion > currMotion) {
+          cycleStarts.push(i);
+        }
+      }
+      
+      console.log(`Found ${cycleStarts.length} potential cycle starts`);
+      
+      // Compare each cycle start with others
+      for (let i = 0; i < cycleStarts.length - 1; i++) {
+        const start1 = cycleStarts[i];
+        const end1 = Math.min(start1 + windowSize, this.frames.length);
+        const pattern1 = this.frames.slice(start1, end1).map(f => f.hash);
         
-        if (similarity > threshold) {
-          repetitions.push([i, j]);
-          console.log(`Found repetition: frames ${i}-${i + windowSize} similar to ${j}-${j + windowSize} (${Math.round(similarity * 100)}% match)`);
-          i = j - 5; // Skip ahead to avoid overlaps
-          break;
+        for (let j = i + 1; j < cycleStarts.length; j++) {
+          const start2 = cycleStarts[j];
+          const end2 = Math.min(start2 + windowSize, this.frames.length);
+          const pattern2 = this.frames.slice(start2, end2).map(f => f.hash);
+          
+          const similarity = this.comparePatterns(pattern1, pattern2);
+          
+          if (similarity > threshold) {
+            allRepetitions.push([start1, start2]);
+            console.log(`Rep ${i+1} to ${j+1}: frames ${start1}-${end1} similar to ${start2}-${end2} (${Math.round(similarity * 100)}% match)`);
+          }
         }
       }
     }
     
-    console.log(`Found ${repetitions.length} repetitions`);
-    return repetitions;
+    // Deduplicate and sort by confidence
+    const uniqueReps = this.deduplicateRepetitions(allRepetitions);
+    console.log(`Found ${uniqueReps.length} unique repetitions`);
+    
+    return uniqueReps;
+  }
+  
+  private deduplicateRepetitions(reps: number[][]): number[][] {
+    const unique: number[][] = [];
+    
+    for (const rep of reps) {
+      const isDuplicate = unique.some(u => 
+        Math.abs(u[0] - rep[0]) < 5 && Math.abs(u[1] - rep[1]) < 5
+      );
+      
+      if (!isDuplicate) {
+        unique.push(rep);
+      }
+    }
+    
+    return unique;
   }
 
   private comparePatterns(pattern1: string[], pattern2: string[]): number {
@@ -303,12 +348,39 @@ export class RealVideoAnalyzer {
       return { loopStart: start, loopEnd: end };
     }
     
-    // Use the first good repetition
-    const [start, end] = repetitions[0];
-    return { 
-      loopStart: start, 
-      loopEnd: Math.min(end, start + Math.floor(this.frames.length / 3)) // Limit loop length
-    };
+    // Find the most consistent repetition pattern
+    let bestStart = repetitions[0][0];
+    let bestEnd = repetitions[0][1];
+    let bestScore = 0;
+    
+    for (const [start1, start2] of repetitions) {
+      // Calculate the duration of this repetition
+      const duration = start2 - start1;
+      
+      // Count how many similar durations we have
+      let consistencyScore = 0;
+      for (const [s1, s2] of repetitions) {
+        const d = s2 - s1;
+        if (Math.abs(d - duration) < 5) { // Similar duration
+          consistencyScore++;
+        }
+      }
+      
+      // Also factor in motion quality
+      const avgMotion = this.frames.slice(start1, start2)
+        .reduce((sum, f) => sum + f.motion, 0) / duration;
+      
+      const score = consistencyScore * avgMotion;
+      
+      if (score > bestScore) {
+        bestScore = score;
+        bestStart = start1;
+        bestEnd = start2;
+      }
+    }
+    
+    console.log(`Best loop: frames ${bestStart} to ${bestEnd}`);
+    return { loopStart: bestStart, loopEnd: bestEnd };
   }
 
   private calculateConfidence(repetitions: number[][]): number {
