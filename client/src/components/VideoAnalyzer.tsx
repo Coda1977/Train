@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { VideoAnalyzer, type DrillAnalysis } from '@/lib/videoAnalyzer';
-import { SimpleVideoAnalyzer } from '@/lib/simpleVideoAnalyzer';
+import { VideoAnalyzerSimplified, type DrillAnalysis } from '@/lib/videoAnalyzerSimplified';
 import { VideoProcessor, type VideoProcessingOptions } from '@/lib/videoProcessor';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -27,8 +26,7 @@ export default function VideoAnalyzerComponent({
   const [processedVideoUrl, setProcessedVideoUrl] = useState<string>('');
   
   const videoRef = useRef<HTMLVideoElement>(null);
-  const analyzerRef = useRef<VideoAnalyzer | null>(null);
-  const simpleAnalyzerRef = useRef<SimpleVideoAnalyzer | null>(null);
+  const analyzerRef = useRef<VideoAnalyzerSimplified | null>(null);
   const processorRef = useRef<VideoProcessor | null>(null);
 
   useEffect(() => {
@@ -40,8 +38,7 @@ export default function VideoAnalyzerComponent({
 
   useEffect(() => {
     // Initialize processors
-    analyzerRef.current = new VideoAnalyzer();
-    simpleAnalyzerRef.current = new SimpleVideoAnalyzer();
+    analyzerRef.current = new VideoAnalyzerSimplified();
     processorRef.current = new VideoProcessor();
     
     return () => {
@@ -50,89 +47,58 @@ export default function VideoAnalyzerComponent({
   }, []);
 
   const handleAnalyze = async () => {
-    if (!analyzerRef.current || !simpleAnalyzerRef.current) return;
+    if (!analyzerRef.current) return;
 
     setIsAnalyzing(true);
     setProgress(0);
 
     try {
-      console.log('Starting video analysis...');
+      console.log('Starting simplified video analysis...');
       
-      let result: DrillAnalysis;
-      
-      try {
-        // Try MediaPipe analysis first
-        console.log('Attempting MediaPipe analysis...');
-        result = await analyzerRef.current.analyzeVideo(videoFile);
-        console.log('MediaPipe analysis completed:', result);
-        
-      } catch (mediaPipeError) {
-        console.warn('MediaPipe analysis failed, falling back to simple analysis:', mediaPipeError);
-        
-        // Fallback to simple analysis
-        const simpleResult = await simpleAnalyzerRef.current.analyzeVideo(videoFile);
-        
-        // Convert simple analysis to DrillAnalysis format
-        result = {
-          ...simpleResult,
-          poses: [] // Simple analyzer doesn't provide pose data
-        };
-        
-        console.log('Simple analysis completed:', result);
-      }
+      // Use simplified analyzer
+      const result = await analyzerRef.current.analyzeVideo(videoFile);
       
       setProgress(100);
       setAnalysis(result);
       
-      // Auto-process if we found good repetitions
-      if (result.repetitions > 0 && result.confidence > 0.4) {
-        console.log('Auto-processing video with good analysis results');
+      console.log('Analysis completed:', result);
+      
+      // Auto-process if we have results
+      if (result.duration > 0) {
+        console.log('Processing video based on analysis');
         await handleProcessVideo(result);
-      } else {
-        console.log('Analysis complete but auto-processing skipped - low confidence or no repetitions');
       }
 
     } catch (error) {
-      console.error('All analysis methods failed:', error);
+      console.error('Analysis failed:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      onError(`Video analysis failed: ${errorMessage}. Please try with a different video.`);
+      onError(`Video analysis failed: ${errorMessage}`);
     } finally {
       setIsAnalyzing(false);
     }
   };
 
   const handleProcessVideo = async (analysisData: DrillAnalysis) => {
-    if (!processorRef.current || !analysisData) return;
+    if (!analysisData) return;
 
     setIsProcessing(true);
 
     try {
-      const options: VideoProcessingOptions = {
-        startTime: analysisData.loopStart / 10, // Convert frame to seconds (assuming 10 FPS)
-        endTime: analysisData.loopEnd / 10,
-        loop: true,
-        compress: true,
-        maxWidth: 720,
-        maxHeight: 1280
-      };
+      console.log('Skipping video processing for now - using original video');
+      
+      // For now, just use the original video
+      // This bypasses FFmpeg issues and lets us test the flow
+      const processedVideo = videoFile;
+      
+      // Create a simple thumbnail (just a placeholder for now)
+      const thumbnail = new Blob([videoFile], { type: 'image/jpeg' });
 
-      const processedVideo = await processorRef.current.processVideo(
-        videoFile,
-        options,
-        (progress) => setProgress(progress)
-      );
-
-      // Generate thumbnail
-      const thumbnail = await processorRef.current.createThumbnail(
-        videoFile,
-        (analysisData.loopStart / 10) + 0.5
-      );
-
-      // Create preview URL for processed video
-      const processedUrl = URL.createObjectURL(processedVideo);
-      setProcessedVideoUrl(processedUrl);
+      // Use original video URL
+      setProcessedVideoUrl(previewUrl);
 
       onAnalysisComplete(analysisData, processedVideo, thumbnail);
+      
+      console.log('Video "processing" complete (using original)');
 
     } catch (error) {
       console.error('Processing failed:', error);

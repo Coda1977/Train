@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>MediaPipe Test</title>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
+</head>
+<body>
+    <h1>MediaPipe Pose Detection Test</h1>
+    <div id="status">Loading...</div>
+    <canvas id="canvas" width="640" height="480"></canvas>
+    
+    <script>
+        const statusDiv = document.getElementById('status');
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Draw a test image
+        ctx.fillStyle = 'blue';
+        ctx.fillRect(100, 100, 200, 200);
+        
+        statusDiv.textContent = 'Initializing MediaPipe...';
+        
+        try {
+            const pose = new Pose({
+                locateFile: (file) => {
+                    console.log('Loading file:', file);
+                    return `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`;
+                }
+            });
+            
+            pose.setOptions({
+                modelComplexity: 1,
+                smoothLandmarks: true,
+                minDetectionConfidence: 0.5,
+                minTrackingConfidence: 0.5
+            });
+            
+            let resultCount = 0;
+            
+            pose.onResults((results) => {
+                resultCount++;
+                console.log('Got results #' + resultCount, results);
+                statusDiv.textContent = `Got ${resultCount} results! Landmarks: ${results.poseLandmarks ? results.poseLandmarks.length : 0}`;
+            });
+            
+            statusDiv.textContent = 'Sending test image...';
+            
+            // Send the canvas as a test
+            pose.send({image: canvas}).then(() => {
+                console.log('Test image sent successfully');
+                statusDiv.textContent = 'Test image sent - waiting for results...';
+            }).catch(error => {
+                console.error('Failed to send test image:', error);
+                statusDiv.textContent = 'Error: ' + error.message;
+            });
+            
+        } catch (error) {
+            console.error('Failed to initialize MediaPipe:', error);
+            statusDiv.textContent = 'Failed to initialize: ' + error.message;
+        }
+    </script>
+</body>
+</html>
