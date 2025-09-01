@@ -105,7 +105,7 @@ export default function VideoAnalyzerComponent({
       
       console.log('Calling onAnalysisComplete...');
       
-      // This should trigger the move to form step
+      // Call onAnalysisComplete which should move to the form step
       onAnalysisComplete(analysisData, processedVideo, thumbnail);
       
       console.log('Video processing complete');
@@ -114,10 +114,7 @@ export default function VideoAnalyzerComponent({
       console.error('Processing failed:', error);
       onError('Failed to process video. Please try again.');
     } finally {
-      // Add small delay to ensure state updates
-      setTimeout(() => {
-        setIsProcessing(false);
-      }, 100);
+      setIsProcessing(false);
     }
   };
 

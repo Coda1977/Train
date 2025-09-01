@@ -87,7 +87,12 @@ export default function Upload() {
     processed?: Blob, 
     thumbnail?: Blob
   ) => {
-    console.log('handleAnalysisComplete called with:', { analysis, processed: !!processed, thumbnail: !!thumbnail });
+    console.log('handleAnalysisComplete called with:', { 
+      analysis, 
+      processed: !!processed, 
+      thumbnail: !!thumbnail,
+      currentStep: step 
+    });
     
     setAnalysisData(analysis);
     
@@ -108,7 +113,13 @@ export default function Upload() {
     console.log('Setting step to form...');
     // Move to form step
     setStep('form');
-    console.log('Step should now be form');
+    console.log('Step changed to form');
+    
+    // Show success toast
+    toast({
+      title: "Analysis Complete",
+      description: `Found ${analysis.repetitions} repetitions with ${Math.round(analysis.confidence * 100)}% confidence`,
+    });
   };
 
   const handleAnalysisError = (error: string) => {
