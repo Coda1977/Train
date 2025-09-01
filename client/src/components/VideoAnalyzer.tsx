@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { VideoAnalyzer, type DrillAnalysis } from '@/lib/videoAnalyzer';
+import { SimpleVideoAnalyzer } from '@/lib/simpleVideoAnalyzer';
 import { VideoProcessor, type VideoProcessingOptions } from '@/lib/videoProcessor';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -27,6 +28,7 @@ export default function VideoAnalyzerComponent({
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const analyzerRef = useRef<VideoAnalyzer | null>(null);
+  const simpleAnalyzerRef = useRef<SimpleVideoAnalyzer | null>(null);
   const processorRef = useRef<VideoProcessor | null>(null);
 
   useEffect(() => {
@@ -39,6 +41,7 @@ export default function VideoAnalyzerComponent({
   useEffect(() => {
     // Initialize processors
     analyzerRef.current = new VideoAnalyzer();
+    simpleAnalyzerRef.current = new SimpleVideoAnalyzer();
     processorRef.current = new VideoProcessor();
     
     return () => {
@@ -47,31 +50,52 @@ export default function VideoAnalyzerComponent({
   }, []);
 
   const handleAnalyze = async () => {
-    if (!analyzerRef.current) return;
+    if (!analyzerRef.current || !simpleAnalyzerRef.current) return;
 
     setIsAnalyzing(true);
     setProgress(0);
 
     try {
-      // Simulate progress during analysis
-      const progressInterval = setInterval(() => {
-        setProgress(prev => Math.min(prev + 10, 90));
-      }, 500);
-
-      const result = await analyzerRef.current.analyzeVideo(videoFile);
+      console.log('Starting video analysis...');
       
-      clearInterval(progressInterval);
+      let result: DrillAnalysis;
+      
+      try {
+        // Try MediaPipe analysis first
+        console.log('Attempting MediaPipe analysis...');
+        result = await analyzerRef.current.analyzeVideo(videoFile);
+        console.log('MediaPipe analysis completed:', result);
+        
+      } catch (mediaPipeError) {
+        console.warn('MediaPipe analysis failed, falling back to simple analysis:', mediaPipeError);
+        
+        // Fallback to simple analysis
+        const simpleResult = await simpleAnalyzerRef.current.analyzeVideo(videoFile);
+        
+        // Convert simple analysis to DrillAnalysis format
+        result = {
+          ...simpleResult,
+          poses: [] // Simple analyzer doesn't provide pose data
+        };
+        
+        console.log('Simple analysis completed:', result);
+      }
+      
       setProgress(100);
       setAnalysis(result);
       
       // Auto-process if we found good repetitions
-      if (result.repetitions > 0 && result.confidence > 0.7) {
+      if (result.repetitions > 0 && result.confidence > 0.4) {
+        console.log('Auto-processing video with good analysis results');
         await handleProcessVideo(result);
+      } else {
+        console.log('Analysis complete but auto-processing skipped - low confidence or no repetitions');
       }
 
     } catch (error) {
-      console.error('Analysis failed:', error);
-      onError('Failed to analyze video. Please try again.');
+      console.error('All analysis methods failed:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      onError(`Video analysis failed: ${errorMessage}. Please try with a different video.`);
     } finally {
       setIsAnalyzing(false);
     }
