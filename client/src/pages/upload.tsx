@@ -29,7 +29,6 @@ export default function Upload() {
   const [step, setStep] = useState<'upload' | 'analyze' | 'form'>('upload');
   const [formData, setFormData] = useState({
     name: "",
-    category: "",
     notes: "",
     autoDetect: true,
     generateThumbnails: true,
@@ -150,10 +149,10 @@ export default function Upload() {
   };
 
   const handleProcessVideo = async (uploadedVideoUrl: string) => {
-    if (!formData.name || !formData.category) {
+    if (!formData.name) {
       toast({
         title: "Error",
-        description: "Please fill in drill name and category.",
+        description: "Please fill in drill name.",
         variant: "destructive",
       });
       return;
@@ -161,7 +160,6 @@ export default function Upload() {
 
     const drillData = {
       name: formData.name,
-      category: formData.category,
       videoPath: uploadedVideoUrl,
       duration: analysisData?.duration || Math.floor(Math.random() * 30) + 15,
       repetitions: analysisData?.repetitions || Math.floor(Math.random() * 5) + 3,
@@ -308,24 +306,6 @@ export default function Upload() {
                   onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
                   data-testid="input-drill-name"
                 />
-              </div>
-              <div>
-                <Label htmlFor="drill-category">Category</Label>
-                <Select
-                  value={formData.category}
-                  onValueChange={(value) => setFormData(prev => ({ ...prev, category: value }))}
-                >
-                  <SelectTrigger data-testid="select-category">
-                    <SelectValue placeholder="Select category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Basketball">Basketball</SelectItem>
-                    <SelectItem value="Soccer">Soccer</SelectItem>
-                    <SelectItem value="Tennis">Tennis</SelectItem>
-                    <SelectItem value="Boxing">Boxing</SelectItem>
-                    <SelectItem value="Other">Other</SelectItem>
-                  </SelectContent>
-                </Select>
               </div>
               <div>
                 <Label htmlFor="drill-notes">Notes</Label>
