@@ -1,0 +1,32 @@
+{
+  "name": "DrillMaster",
+  "short_name": "DrillMaster",
+  "description": "Analyze and organize training drill videos with automated loop creation and workout building capabilities",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f0f0f0",
+  "theme_color": "#eb1a4e",
+  "orientation": "portrait-primary",
+  "categories": ["sports", "fitness", "education"],
+  "lang": "en",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshot-mobile.png",
+      "sizes": "390x844",
+      "type": "image/png",
+      "form_factor": "narrow"
+    }
+  ]
+}
