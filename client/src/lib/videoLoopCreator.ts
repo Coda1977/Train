@@ -54,9 +54,9 @@ export class VideoLoopCreator {
     endTime: number,
     onProgress?: (progress: number) => void
   ): Promise<Blob> {
-    const fps = 10; // Reduced frame rate for more reliable seeking
+    const fps = 30; // Use standard frame rate for smoother output
     const duration = endTime - startTime;
-    const totalFrames = Math.ceil(duration * fps);
+    const frameInterval = 1000 / fps; // milliseconds between frames
     
     // Validate bounds
     if (startTime < 0 || endTime > video.duration || duration <= 0) {
@@ -68,8 +68,9 @@ export class VideoLoopCreator {
       ? 'video/webm;codecs=vp9'
       : 'video/webm';
     
-    // Create a MediaRecorder to capture canvas
-    const stream = this.canvas.captureStream(fps);
+    // FIXED: Use requestAnimationFrame-based approach for consistent frame delivery
+    // Create a MediaRecorder to capture canvas at 0 fps (manual frame control)
+    const stream = this.canvas.captureStream(0); // 0 = manual frame control
     const recorder = new MediaRecorder(stream, {
       mimeType,
       videoBitsPerSecond: 2500000 // 2.5 Mbps
@@ -102,82 +103,128 @@ export class VideoLoopCreator {
         reject(error);
       };
       
-      recorder.start();
-      
-      // Play the loop 3 times for seamless looping
-      let frameCount = 0;
-      const totalLoopFrames = totalFrames * 3;
-      
-      const captureFrame = async () => {
-        try {
-          if (frameCount >= totalLoopFrames) {
-            recorder.stop();
-            return;
-          }
+      // FIXED: First collect all frames, then encode them
+      const collectFrames = async () => {
+        const frames: ImageData[] = [];
+        const frameTimes: number[] = [];
+        const totalFrames = Math.ceil(duration * fps);
+        
+        console.log(`Collecting ${totalFrames} frames from ${startTime}s to ${endTime}s`);
+        
+        // Collect frames sequentially with proper seeking
+        for (let i = 0; i < totalFrames; i++) {
+          const frameTime = startTime + (i / fps);
           
-          // Calculate time within the loop
-          const loopFrame = frameCount % totalFrames;
-          const currentTime = startTime + (loopFrame / fps);
-          
-          // Validate time is within bounds
-          if (currentTime < 0 || currentTime > video.duration) {
-            console.warn(`Skipping out-of-bounds frame at ${currentTime}s`);
-            frameCount++;
-            setTimeout(captureFrame, 1000 / fps);
-            return;
-          }
-          
-          // Seek and draw frame
-          video.currentTime = currentTime;
-          
-          await new Promise<void>((resolve, reject) => {
-            let seekTimeout: NodeJS.Timeout;
-            
+          // Seek to frame time and wait for seek to complete
+          await new Promise<void>((seekResolve) => {
             const onSeeked = () => {
-              clearTimeout(seekTimeout);
               video.removeEventListener('seeked', onSeeked);
+              video.removeEventListener('error', onError);
               
               // Draw frame to canvas
               this.ctx.drawImage(video, 0, 0, this.canvas.width, this.canvas.height);
               
-              resolve();
+              // Store frame data
+              const imageData = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
+              frames.push(imageData);
+              frameTimes.push(frameTime);
+              
+              seekResolve();
+            };
+            
+            const onError = () => {
+              video.removeEventListener('seeked', onSeeked);
+              video.removeEventListener('error', onError);
+              console.warn(`Failed to seek to ${frameTime}s, using current frame`);
+              
+              // Use current frame as fallback
+              this.ctx.drawImage(video, 0, 0, this.canvas.width, this.canvas.height);
+              const imageData = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
+              frames.push(imageData);
+              frameTimes.push(frameTime);
+              
+              seekResolve();
             };
             
             video.addEventListener('seeked', onSeeked);
+            video.addEventListener('error', onError);
+            video.currentTime = frameTime;
             
-            // Longer timeout for seeking
-            seekTimeout = setTimeout(() => {
+            // Fallback timeout
+            setTimeout(() => {
               video.removeEventListener('seeked', onSeeked);
-              // Draw current frame anyway
+              video.removeEventListener('error', onError);
+              
+              // Use current frame as fallback
               this.ctx.drawImage(video, 0, 0, this.canvas.width, this.canvas.height);
-              resolve();
-            }, 200);
+              const imageData = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
+              frames.push(imageData);
+              frameTimes.push(frameTime);
+              
+              seekResolve();
+            }, 500); // Longer timeout for seeking
           });
           
-          frameCount++;
-          
-          // Progress callback
+          // Update progress
           if (onProgress) {
-            onProgress((frameCount / totalLoopFrames) * 100);
-          }
-          
-          // Continue to next frame
-          setTimeout(captureFrame, 1000 / fps);
-          
-        } catch (error) {
-          console.error('Frame capture error:', error);
-          // Try to continue with next frame
-          frameCount++;
-          if (frameCount < totalLoopFrames) {
-            setTimeout(captureFrame, 1000 / fps);
-          } else {
-            recorder.stop();
+            onProgress((i / totalFrames) * 50); // First 50% for frame collection
           }
         }
+        
+        console.log(`Collected ${frames.length} frames, now encoding...`);
+        
+        // Now encode the collected frames at consistent FPS
+        recorder.start();
+        
+        // Play the loop 3 times for seamless looping
+        const totalLoopFrames = frames.length * 3;
+        let frameIndex = 0;
+        let lastFrameTime = performance.now();
+        
+        const encodeFrame = () => {
+          if (frameIndex >= totalLoopFrames) {
+            // Ensure recorder stops properly
+            recorder.stop();
+            return;
+          }
+          
+          // Get the frame to encode (loop through collected frames)
+          const frame = frames[frameIndex % frames.length];
+          
+          // Put frame on canvas
+          this.ctx.putImageData(frame, 0, 0);
+          
+          // CRITICAL: Manually request frame from stream
+          const track = stream.getVideoTracks()[0];
+          if (track && 'requestFrame' in track) {
+            (track as any).requestFrame();
+          }
+          
+          frameIndex++;
+          
+          // Update progress
+          if (onProgress) {
+            onProgress(50 + (frameIndex / totalLoopFrames) * 50); // Second 50% for encoding
+          }
+          
+          // Schedule next frame at consistent interval
+          const now = performance.now();
+          const elapsed = now - lastFrameTime;
+          const delay = Math.max(0, frameInterval - elapsed);
+          lastFrameTime = now + delay;
+          
+          setTimeout(encodeFrame, delay);
+        };
+        
+        // Start encoding frames
+        encodeFrame();
       };
       
-      // Start capturing
-      captureFrame();
+      // Start the frame collection and encoding process
+      collectFrames().catch((error) => {
+        clearTimeout(overallTimeout);
+        reject(error);
+      });
     });
   }
 

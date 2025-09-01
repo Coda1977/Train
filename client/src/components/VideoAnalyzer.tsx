@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { VideoAnalyzerSimplified, type DrillAnalysis } from '@/lib/videoAnalyzerSimplified';
-import { VideoLoopCreator } from '@/lib/videoLoopCreator';
+// Using alternative approach for more reliable loop creation
+import { VideoLoopCreatorAlternative as VideoLoopCreator } from '@/lib/videoLoopCreatorAlternative';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -202,7 +203,7 @@ export default function VideoAnalyzerComponent({
             <div className="flex justify-between text-sm">
               <span>Best Loop:</span>
               <span>
-                {formatTime(analysis.loopStart / 10)} - {formatTime(analysis.loopEnd / 10)}
+                {formatTime(analysis.loopStart)} - {formatTime(analysis.loopEnd)}
               </span>
             </div>
             <div className="flex justify-between text-sm">
