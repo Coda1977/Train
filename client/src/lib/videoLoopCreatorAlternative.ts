@@ -113,9 +113,11 @@ export class VideoLoopCreatorAlternative {
       video.currentTime = startTime;
       
       video.onseeked = () => {
-        // Start recording
-        recorder.start();
-        recordingStartTime = performance.now();
+        // Only start if not already recording
+        if (recorder.state === 'inactive') {
+          recorder.start();
+          recordingStartTime = performance.now();
+        }
         
         // Use requestAnimationFrame for smooth rendering
         const render = () => {
