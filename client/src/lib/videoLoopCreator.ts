@@ -54,9 +54,14 @@ export class VideoLoopCreator {
     endTime: number,
     onProgress?: (progress: number) => void
   ): Promise<Blob> {
-    const fps = 30; // Target frame rate
+    const fps = 10; // Reduced frame rate for more reliable seeking
     const duration = endTime - startTime;
     const totalFrames = Math.ceil(duration * fps);
+    
+    // Validate bounds
+    if (startTime < 0 || endTime > video.duration || duration <= 0) {
+      throw new Error(`Invalid loop bounds: ${startTime}s to ${endTime}s (video duration: ${video.duration}s)`);
+    }
     
     // Check if MediaRecorder is available and supports webm
     const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9') 
@@ -78,11 +83,23 @@ export class VideoLoopCreator {
       }
     };
     
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
+      // Add overall timeout for loop creation
+      const overallTimeout = setTimeout(() => {
+        recorder.stop();
+        reject(new Error('Loop creation timed out after 30 seconds'));
+      }, 30000);
+      
       recorder.onstop = () => {
+        clearTimeout(overallTimeout);
         const blob = new Blob(chunks, { type: mimeType });
         console.log(`Created loop video: ${(blob.size / 1024 / 1024).toFixed(2)}MB`);
         resolve(blob);
+      };
+      
+      recorder.onerror = (error) => {
+        clearTimeout(overallTimeout);
+        reject(error);
       };
       
       recorder.start();
@@ -92,43 +109,71 @@ export class VideoLoopCreator {
       const totalLoopFrames = totalFrames * 3;
       
       const captureFrame = async () => {
-        if (frameCount >= totalLoopFrames) {
-          recorder.stop();
-          return;
-        }
-        
-        // Calculate time within the loop
-        const loopFrame = frameCount % totalFrames;
-        const currentTime = startTime + (loopFrame / fps);
-        
-        // Seek and draw frame
-        video.currentTime = currentTime;
-        
-        await new Promise<void>((resolve) => {
-          const onSeeked = () => {
-            video.removeEventListener('seeked', onSeeked);
-            
-            // Draw frame to canvas
-            this.ctx.drawImage(video, 0, 0, this.canvas.width, this.canvas.height);
-            
-            resolve();
-          };
+        try {
+          if (frameCount >= totalLoopFrames) {
+            recorder.stop();
+            return;
+          }
           
-          video.addEventListener('seeked', onSeeked);
+          // Calculate time within the loop
+          const loopFrame = frameCount % totalFrames;
+          const currentTime = startTime + (loopFrame / fps);
           
-          // Fallback
-          setTimeout(() => resolve(), 50);
-        });
-        
-        frameCount++;
-        
-        // Progress callback
-        if (onProgress) {
-          onProgress((frameCount / totalLoopFrames) * 100);
+          // Validate time is within bounds
+          if (currentTime < 0 || currentTime > video.duration) {
+            console.warn(`Skipping out-of-bounds frame at ${currentTime}s`);
+            frameCount++;
+            setTimeout(captureFrame, 1000 / fps);
+            return;
+          }
+          
+          // Seek and draw frame
+          video.currentTime = currentTime;
+          
+          await new Promise<void>((resolve, reject) => {
+            let seekTimeout: NodeJS.Timeout;
+            
+            const onSeeked = () => {
+              clearTimeout(seekTimeout);
+              video.removeEventListener('seeked', onSeeked);
+              
+              // Draw frame to canvas
+              this.ctx.drawImage(video, 0, 0, this.canvas.width, this.canvas.height);
+              
+              resolve();
+            };
+            
+            video.addEventListener('seeked', onSeeked);
+            
+            // Longer timeout for seeking
+            seekTimeout = setTimeout(() => {
+              video.removeEventListener('seeked', onSeeked);
+              // Draw current frame anyway
+              this.ctx.drawImage(video, 0, 0, this.canvas.width, this.canvas.height);
+              resolve();
+            }, 200);
+          });
+          
+          frameCount++;
+          
+          // Progress callback
+          if (onProgress) {
+            onProgress((frameCount / totalLoopFrames) * 100);
+          }
+          
+          // Continue to next frame
+          setTimeout(captureFrame, 1000 / fps);
+          
+        } catch (error) {
+          console.error('Frame capture error:', error);
+          // Try to continue with next frame
+          frameCount++;
+          if (frameCount < totalLoopFrames) {
+            setTimeout(captureFrame, 1000 / fps);
+          } else {
+            recorder.stop();
+          }
         }
-        
-        // Continue to next frame
-        setTimeout(captureFrame, 1000 / fps);
       };
       
       // Start capturing

@@ -200,12 +200,17 @@ export class RealVideoAnalyzer {
     // Calculate confidence based on pattern consistency
     const confidence = this.calculateConfidence(repetitions);
 
+    // Convert frame indices to seconds
+    // frames were extracted at specific times, use actual frame times
+    const loopStartTime = this.frames[Math.min(loopStart, this.frames.length - 1)]?.time || 0;
+    const loopEndTime = this.frames[Math.min(loopEnd, this.frames.length - 1)]?.time || duration;
+    
     return {
       duration,
       repetitions: repetitions.length,
       keyFrames,
-      loopStart: Math.floor(loopStart * duration / this.frames.length),
-      loopEnd: Math.floor(loopEnd * duration / this.frames.length),
+      loopStart: loopStartTime,
+      loopEnd: loopEndTime,
       confidence,
       poses: [] // We don't have pose data, but that's ok
     };

@@ -89,9 +89,9 @@ export default function VideoAnalyzerComponent({
     try {
       console.log('Creating REAL video loop...');
       
-      // Convert frame indices to seconds
-      const startTime = analysisData.loopStart / 10; // loopStart is in frame index * 10
-      const endTime = analysisData.loopEnd / 10;     // loopEnd is in frame index * 10
+      // loopStart and loopEnd are already in seconds from the analyzer
+      const startTime = analysisData.loopStart;
+      const endTime = analysisData.loopEnd;
       
       console.log(`Creating loop from ${startTime}s to ${endTime}s`);
       
