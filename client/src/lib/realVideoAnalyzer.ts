@@ -29,6 +29,7 @@ export class RealVideoAnalyzer {
   }
 
   async analyzeVideo(videoFile: File): Promise<DrillAnalysis> {
+    console.log('🚀🚀🚀 CANVAS-BASED ANALYZER (NO MEDIAPIPE!) 🚀🚀🚀');
     console.log('Starting REAL video analysis...');
     
     return new Promise((resolve, reject) => {
