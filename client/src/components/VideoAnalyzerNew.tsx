@@ -14,7 +14,7 @@ interface VideoAnalyzerProps {
   onError: (error: string) => void;
 }
 
-export default function VideoAnalyzerComponent({ 
+export default function VideoAnalyzerNew({ 
   videoFile, 
   onAnalysisComplete, 
   onError 

@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { ArrowLeft, CloudUpload, Wand2 } from "lucide-react";
 import { ObjectUploader } from "@/components/ObjectUploader";
-import VideoAnalyzer from "@/components/VideoAnalyzer";
+import VideoAnalyzerNew from "@/components/VideoAnalyzerNew";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { UploadResult } from "@uppy/core";
@@ -240,7 +240,7 @@ export default function Upload() {
 
       {/* Step 2: Analysis */}
       {step === 'analyze' && videoFile && (
-        <VideoAnalyzer
+        <VideoAnalyzerNew
           videoFile={videoFile}
           onAnalysisComplete={handleAnalysisComplete}
           onError={handleAnalysisError}
