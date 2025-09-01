@@ -41,6 +41,10 @@ export default function VideoAnalyzerComponent({
     // Initialize analyzer and loop creator
     analyzerRef.current = new VideoAnalyzerSimplified();
     loopCreatorRef.current = new VideoLoopCreator();
+    console.log('✅ VideoAnalyzer initialized with:', {
+      analyzer: 'VideoAnalyzerSimplified (Real Canvas-based)',
+      loopCreator: 'VideoLoopCreatorAlternative (Playback Recording)'
+    });
   }, []);
 
   const handleAnalyze = async () => {

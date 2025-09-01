@@ -16,6 +16,7 @@ export class VideoLoopCreator {
     endTime: number,
     onProgress?: (progress: number) => void
   ): Promise<Blob> {
+    console.log('⚠️ USING ORIGINAL VIDEO LOOP CREATOR (Frame Extraction) - This should NOT appear!');
     console.log(`Creating loop from ${startTime}s to ${endTime}s`);
     
     return new Promise((resolve, reject) => {

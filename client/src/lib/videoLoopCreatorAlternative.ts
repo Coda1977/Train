@@ -16,6 +16,7 @@ export class VideoLoopCreatorAlternative {
     endTime: number,
     onProgress?: (progress: number) => void
   ): Promise<Blob> {
+    console.log('🎬 USING ALTERNATIVE VIDEO LOOP CREATOR (Playback Recording)');
     console.log(`Creating loop using playback recording from ${startTime}s to ${endTime}s`);
     
     return new Promise((resolve, reject) => {
