@@ -7,6 +7,10 @@ import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
+  // FORCE CACHE BREAK - Add timestamp to all builds
+  define: {
+    '__BUILD_TIME__': JSON.stringify(Date.now()),
+  },
   plugins: [
     react(),
     runtimeErrorOverlay(),
@@ -36,5 +40,16 @@ export default defineConfig({
       strict: true,
       deny: ["**/.*"],
     },
+    // FORCE NO CACHE IN DEV SERVER
+    headers: {
+      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0',
+      'Surrogate-Control': 'no-store',
+    },
+  },
+  // CLEAR CACHE ON BUILD
+  optimizeDeps: {
+    force: true,
   },
 });

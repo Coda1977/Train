@@ -10,6 +10,7 @@ import Drill from "@/pages/drill";
 import Workout from "@/pages/workout";
 import NotFound from "@/pages/not-found";
 import Navigation from "@/components/navigation";
+import { ForceRefresh } from "@/components/ForceRefresh"; // TEMPORARY - Remove after cache issue resolved
 
 function Router() {
   return (
@@ -33,6 +34,7 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <TooltipProvider>
+          <ForceRefresh /> {/* TEMPORARY - Remove after cache issue resolved */}
           <Toaster />
           <Router />
         </TooltipProvider>

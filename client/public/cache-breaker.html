@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cache Breaker - Force Clear All Caches</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        button {
+            background: #dc2626;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #b91c1c;
+        }
+        .log {
+            background: #1e293b;
+            color: #10b981;
+            padding: 15px;
+            border-radius: 6px;
+            margin-top: 20px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .warning {
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            color: #7f1d1d;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔥 Nuclear Cache Breaker</h1>
+        
+        <div class="warning">
+            <strong>⚠️ Warning:</strong> This will completely clear ALL caches, service workers, and stored data for this domain.
+        </div>
+        
+        <div>
+            <button onclick="clearEverything()">🧨 Clear EVERYTHING</button>
+            <button onclick="unregisterServiceWorkers()">🔧 Unregister Service Workers</button>
+            <button onclick="clearCaches()">🗑️ Clear Caches Only</button>
+            <button onclick="hardReload()">🔄 Hard Reload</button>
+        </div>
+        
+        <div class="log" id="log">
+            Ready to break caches...
+        </div>
+    </div>
+    
+    <script>
+        const log = (message) => {
+            const logEl = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            logEl.innerHTML += `\n[${timestamp}] ${message}`;
+            logEl.scrollTop = logEl.scrollHeight;
+            console.log(message);
+        };
+        
+        async function clearEverything() {
+            log('Starting nuclear cache clear...');
+            
+            // 1. Unregister all service workers
+            if ('serviceWorker' in navigator) {
+                const registrations = await navigator.serviceWorker.getRegistrations();
+                for (const registration of registrations) {
+                    const success = await registration.unregister();
+                    log(`Service Worker unregistered: ${success}`);
+                }
+            }
+            
+            // 2. Clear all caches
+            if ('caches' in window) {
+                const cacheNames = await caches.keys();
+                for (const cacheName of cacheNames) {
+                    await caches.delete(cacheName);
+                    log(`Deleted cache: ${cacheName}`);
+                }
+            }
+            
+            // 3. Clear IndexedDB
+            if ('indexedDB' in window) {
+                const databases = await indexedDB.databases();
+                for (const db of databases) {
+                    indexedDB.deleteDatabase(db.name);
+                    log(`Deleted IndexedDB: ${db.name}`);
+                }
+            }
+            
+            // 4. Clear localStorage
+            if (typeof localStorage !== 'undefined') {
+                const keys = Object.keys(localStorage);
+                localStorage.clear();
+                log(`Cleared localStorage (${keys.length} items)`);
+            }
+            
+            // 5. Clear sessionStorage
+            if (typeof sessionStorage !== 'undefined') {
+                const keys = Object.keys(sessionStorage);
+                sessionStorage.clear();
+                log(`Cleared sessionStorage (${keys.length} items)`);
+            }
+            
+            // 6. Clear cookies for this domain
+            document.cookie.split(";").forEach(function(c) { 
+                document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/"); 
+            });
+            log('Cleared cookies');
+            
+            log('✅ ALL CACHES CLEARED! Reloading in 3 seconds...');
+            
+            setTimeout(() => {
+                // Force reload with cache bypass
+                window.location.href = window.location.origin + '?cachebust=' + Date.now();
+            }, 3000);
+        }
+        
+        async function unregisterServiceWorkers() {
+            if ('serviceWorker' in navigator) {
+                const registrations = await navigator.serviceWorker.getRegistrations();
+                for (const registration of registrations) {
+                    const success = await registration.unregister();
+                    log(`Service Worker unregistered: ${success}`);
+                }
+                log('✅ All service workers unregistered');
+            } else {
+                log('No service worker support');
+            }
+        }
+        
+        async function clearCaches() {
+            if ('caches' in window) {
+                const cacheNames = await caches.keys();
+                for (const cacheName of cacheNames) {
+                    await caches.delete(cacheName);
+                    log(`Deleted cache: ${cacheName}`);
+                }
+                log('✅ All caches cleared');
+            } else {
+                log('No cache API support');
+            }
+        }
+        
+        function hardReload() {
+            log('Performing hard reload...');
+            window.location.reload(true);
+        }
+        
+        // Show current cache status on load
+        window.addEventListener('load', async () => {
+            log('Checking current cache status...');
+            
+            if ('serviceWorker' in navigator) {
+                const registrations = await navigator.serviceWorker.getRegistrations();
+                log(`Found ${registrations.length} service worker(s)`);
+                for (const reg of registrations) {
+                    log(`  - SW Scope: ${reg.scope}`);
+                }
+            }
+            
+            if ('caches' in window) {
+                const cacheNames = await caches.keys();
+                log(`Found ${cacheNames.length} cache(s)`);
+                for (const name of cacheNames) {
+                    log(`  - Cache: ${name}`);
+                }
+            }
+        });
+    </script>
+</body>
+</html>
