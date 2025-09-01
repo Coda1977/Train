@@ -14,7 +14,7 @@ import VideoAnalyzer from "@/components/VideoAnalyzer";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { UploadResult } from "@uppy/core";
-import type { DrillAnalysis } from "@/lib/videoAnalyzer";
+import type { DrillAnalysis } from "@/lib/videoAnalyzerSimplified";
 
 export default function Upload() {
   const [, setLocation] = useLocation();

@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
 import { VideoAnalyzerSimplified, type DrillAnalysis } from '@/lib/videoAnalyzerSimplified';
-import { VideoProcessor, type VideoProcessingOptions } from '@/lib/videoProcessor';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -27,7 +26,6 @@ export default function VideoAnalyzerComponent({
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const analyzerRef = useRef<VideoAnalyzerSimplified | null>(null);
-  const processorRef = useRef<VideoProcessor | null>(null);
 
   useEffect(() => {
     const url = URL.createObjectURL(videoFile);
@@ -37,13 +35,8 @@ export default function VideoAnalyzerComponent({
   }, [videoFile]);
 
   useEffect(() => {
-    // Initialize processors
+    // Initialize analyzer
     analyzerRef.current = new VideoAnalyzerSimplified();
-    processorRef.current = new VideoProcessor();
-    
-    return () => {
-      processorRef.current?.destroy();
-    };
   }, []);
 
   const handleAnalyze = async () => {
