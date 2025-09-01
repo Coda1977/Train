@@ -87,6 +87,8 @@ export default function Upload() {
     processed?: Blob, 
     thumbnail?: Blob
   ) => {
+    console.log('handleAnalysisComplete called with:', { analysis, processed: !!processed, thumbnail: !!thumbnail });
+    
     setAnalysisData(analysis);
     
     if (processed) {
@@ -103,8 +105,10 @@ export default function Upload() {
       notes: `${analysis.repetitions} repetitions detected with ${Math.round(analysis.confidence * 100)}% confidence`
     }));
     
+    console.log('Setting step to form...');
     // Move to form step
     setStep('form');
+    console.log('Step should now be form');
   };
 
   const handleAnalysisError = (error: string) => {
@@ -159,6 +163,8 @@ export default function Upload() {
 
   const isProcessing = uploadMutation.isPending || createDrillMutation.isPending;
 
+  console.log('Current step:', step);
+  
   return (
     <div className="px-4 py-6">
       <div className="flex items-center mb-6">
