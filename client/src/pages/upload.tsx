@@ -10,9 +10,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { ArrowLeft, CloudUpload, Wand2 } from "lucide-react";
 import { ObjectUploader } from "@/components/ObjectUploader";
+import VideoAnalyzer from "@/components/VideoAnalyzer";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { UploadResult } from "@uppy/core";
+import type { DrillAnalysis } from "@/lib/videoAnalyzer";
 
 export default function Upload() {
   const [, setLocation] = useLocation();
@@ -21,6 +23,10 @@ export default function Upload() {
   
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [videoUrl, setVideoUrl] = useState<string>("");
+  const [analysisData, setAnalysisData] = useState<DrillAnalysis | null>(null);
+  const [processedVideo, setProcessedVideo] = useState<Blob | null>(null);
+  const [thumbnailBlob, setThumbnailBlob] = useState<Blob | null>(null);
+  const [step, setStep] = useState<'upload' | 'analyze' | 'form'>('upload');
   const [formData, setFormData] = useState({
     name: "",
     category: "",
@@ -71,6 +77,45 @@ export default function Upload() {
     // Auto-populate name from filename
     const nameWithoutExt = file.name.replace(/\.[^/.]+$/, "");
     setFormData(prev => ({ ...prev, name: nameWithoutExt }));
+    
+    // Move to analysis step
+    setStep('analyze');
+  };
+
+  const handleAnalysisComplete = (
+    analysis: DrillAnalysis, 
+    processed?: Blob, 
+    thumbnail?: Blob
+  ) => {
+    setAnalysisData(analysis);
+    
+    if (processed) {
+      setProcessedVideo(processed);
+    }
+    
+    if (thumbnail) {
+      setThumbnailBlob(thumbnail);
+    }
+    
+    // Pre-fill form with analysis data
+    setFormData(prev => ({
+      ...prev,
+      notes: `${analysis.repetitions} repetitions detected with ${Math.round(analysis.confidence * 100)}% confidence`
+    }));
+    
+    // Move to form step
+    setStep('form');
+  };
+
+  const handleAnalysisError = (error: string) => {
+    toast({
+      title: "Analysis Error",
+      description: error,
+      variant: "destructive",
+    });
+    
+    // Fall back to manual form entry
+    setStep('form');
   };
 
   const handleGetUploadParameters = async () => {
@@ -99,18 +144,13 @@ export default function Upload() {
       return;
     }
 
-    // Mock video analysis - in real app this would involve ML processing
-    const mockDuration = Math.floor(Math.random() * 30) + 15; // 15-45 seconds
-    const mockRepetitions = Math.floor(Math.random() * 5) + 3; // 3-8 reps
-    const mockAccuracy = Math.floor(Math.random() * 20) + 80; // 80-100% accuracy
-
     const drillData = {
       name: formData.name,
       category: formData.category,
       videoPath: uploadedVideoUrl,
-      duration: mockDuration,
-      repetitions: mockRepetitions,
-      accuracy: mockAccuracy,
+      duration: analysisData?.duration || Math.floor(Math.random() * 30) + 15,
+      repetitions: analysisData?.repetitions || Math.floor(Math.random() * 5) + 3,
+      accuracy: analysisData ? Math.round(analysisData.confidence * 100) : Math.floor(Math.random() * 20) + 80,
       notes: formData.notes || undefined,
     };
 
@@ -126,56 +166,122 @@ export default function Upload() {
           variant="ghost"
           size="icon"
           className="p-2 -ml-2 mr-2"
-          onClick={() => setLocation("/")}
+          onClick={() => {
+            if (step === 'analyze' || step === 'form') {
+              setStep('upload');
+            } else {
+              setLocation("/");
+            }
+          }}
           data-testid="button-back"
         >
           <ArrowLeft className="h-5 w-5" />
         </Button>
-        <h1 className="text-xl font-semibold">Add New Drill</h1>
+        <h1 className="text-xl font-semibold">
+          {step === 'upload' && "Add New Drill"}
+          {step === 'analyze' && "Analyzing Video"}
+          {step === 'form' && "Drill Details"}
+        </h1>
       </div>
 
-      {/* Upload Area */}
-      <div className="mb-6">
-        <Card className="border-2 border-dashed border-border p-8 text-center bg-muted/20 hover:bg-muted/30 transition-colors">
-          <div className="mb-4">
-            <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
-              <CloudUpload className="h-8 w-8 text-primary" />
-            </div>
-            <h3 className="text-lg font-medium mb-2">Upload Training Video</h3>
-            <p className="text-muted-foreground text-sm mb-4">
-              Drag and drop your video file here, or click to browse
-            </p>
-            
-            <ObjectUploader
-              maxNumberOfFiles={1}
-              maxFileSize={104857600} // 100MB
-              onGetUploadParameters={handleGetUploadParameters}
-              onComplete={handleUploadComplete}
-              buttonClassName="bg-primary text-primary-foreground px-6 py-2 rounded-lg font-medium"
-            >
-              Choose File
-            </ObjectUploader>
-          </div>
-          <div className="text-xs text-muted-foreground">
-            Supported formats: MP4, MOV, AVI • Max size: 100MB
-          </div>
-        </Card>
-      </div>
-
-      {/* Video Preview */}
-      {videoUrl && (
+      {/* Step 1: Upload */}
+      {step === 'upload' && (
         <div className="mb-6">
-          <Card className="p-4 shadow-sm">
-            <h3 className="font-medium mb-3">Video Preview</h3>
-            <div className="aspect-video bg-muted rounded-lg mb-4 relative overflow-hidden">
-              <video
-                src={videoUrl}
-                className="w-full h-full object-cover"
-                controls
-                data-testid="video-preview"
+          <Card className="border-2 border-dashed border-border p-8 text-center bg-muted/20 hover:bg-muted/30 transition-colors">
+            <div className="mb-4">
+              <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                <CloudUpload className="h-8 w-8 text-primary" />
+              </div>
+              <h3 className="text-lg font-medium mb-2">Upload Training Video</h3>
+              <p className="text-muted-foreground text-sm mb-4">
+                Choose a video with clear drill movements for automatic analysis
+              </p>
+              
+              <input
+                type="file"
+                accept="video/*"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleVideoSelect(file);
+                }}
+                className="hidden"
+                id="video-input"
               />
+              <label
+                htmlFor="video-input"
+                className="bg-primary text-primary-foreground px-6 py-2 rounded-lg font-medium cursor-pointer inline-block hover:bg-primary/90"
+              >
+                Choose Video File
+              </label>
             </div>
-            <div className="space-y-3">
+            <div className="text-xs text-muted-foreground">
+              Supported formats: MP4, MOV, AVI • Max size: 100MB
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* Step 2: Analysis */}
+      {step === 'analyze' && videoFile && (
+        <VideoAnalyzer
+          videoFile={videoFile}
+          onAnalysisComplete={handleAnalysisComplete}
+          onError={handleAnalysisError}
+        />
+      )}
+
+      {/* Step 3: Form */}
+      {step === 'form' && (
+        <div className="space-y-6">
+          {/* Analysis Summary */}
+          {analysisData && (
+            <Card className="p-4 bg-green-50 border-green-200">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="font-medium text-green-800">Analysis Complete</h3>
+                <div className="text-sm text-green-600">
+                  {Math.round(analysisData.confidence * 100)}% confidence
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-4 text-center">
+                <div>
+                  <div className="text-lg font-bold text-green-700">{analysisData.repetitions}</div>
+                  <div className="text-xs text-green-600">Repetitions</div>
+                </div>
+                <div>
+                  <div className="text-lg font-bold text-green-700">
+                    {Math.round(analysisData.duration)}s
+                  </div>
+                  <div className="text-xs text-green-600">Duration</div>
+                </div>
+                <div>
+                  <div className="text-lg font-bold text-green-700">
+                    {analysisData.keyFrames.length}
+                  </div>
+                  <div className="text-xs text-green-600">Key Frames</div>
+                </div>
+              </div>
+            </Card>
+          )}
+
+          {/* Video Preview */}
+          {videoUrl && (
+            <Card className="p-4">
+              <h3 className="font-medium mb-3">Video Preview</h3>
+              <div className="aspect-video bg-muted rounded-lg overflow-hidden">
+                <video
+                  src={processedVideo ? URL.createObjectURL(processedVideo) : videoUrl}
+                  className="w-full h-full object-contain"
+                  controls
+                  loop={!!processedVideo}
+                  data-testid="video-preview"
+                />
+              </div>
+            </Card>
+          )}
+
+          {/* Form Fields */}
+          <Card className="p-4">
+            <div className="space-y-4">
               <div>
                 <Label htmlFor="drill-name">Drill Name</Label>
                 <Input
@@ -205,7 +311,7 @@ export default function Upload() {
                 </Select>
               </div>
               <div>
-                <Label htmlFor="drill-notes">Notes (Optional)</Label>
+                <Label htmlFor="drill-notes">Notes</Label>
                 <Textarea
                   id="drill-notes"
                   placeholder="Add any training notes or instructions..."
@@ -217,76 +323,34 @@ export default function Upload() {
               </div>
             </div>
           </Card>
+
+          {/* Action Buttons */}
+          <div className="space-y-3">
+            <ObjectUploader
+              maxNumberOfFiles={1}
+              maxFileSize={104857600}
+              onGetUploadParameters={handleGetUploadParameters}
+              onComplete={handleUploadComplete}
+              buttonClassName="w-full py-3 rounded-xl font-medium disabled:opacity-50 bg-primary text-primary-foreground"
+            >
+              <div className="flex items-center justify-center space-x-2">
+                <Wand2 className="h-4 w-4" />
+                <span>{isProcessing ? "Saving..." : "Save Drill"}</span>
+              </div>
+            </ObjectUploader>
+            
+            <Button
+              variant="outline"
+              className="w-full py-3"
+              onClick={() => setStep('analyze')}
+              disabled={isProcessing}
+              data-testid="button-back-to-analysis"
+            >
+              Back to Analysis
+            </Button>
+          </div>
         </div>
       )}
-
-      {/* Analysis Options */}
-      <div className="mb-6">
-        <Card className="p-4 shadow-sm">
-          <h3 className="font-medium mb-3">Analysis Settings</h3>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="font-medium text-sm">Auto-detect repetitions</div>
-                <div className="text-xs text-muted-foreground">Find the best repeated movements</div>
-              </div>
-              <Switch
-                checked={formData.autoDetect}
-                onCheckedChange={(checked) => setFormData(prev => ({ ...prev, autoDetect: checked }))}
-                data-testid="switch-auto-detect"
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="font-medium text-sm">Generate thumbnails</div>
-                <div className="text-xs text-muted-foreground">Create preview images automatically</div>
-              </div>
-              <Switch
-                checked={formData.generateThumbnails}
-                onCheckedChange={(checked) => setFormData(prev => ({ ...prev, generateThumbnails: checked }))}
-                data-testid="switch-thumbnails"
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="font-medium text-sm">Create seamless loops</div>
-                <div className="text-xs text-muted-foreground">Generate smooth looping animations</div>
-              </div>
-              <Switch
-                checked={formData.createLoops}
-                onCheckedChange={(checked) => setFormData(prev => ({ ...prev, createLoops: checked }))}
-                data-testid="switch-loops"
-              />
-            </div>
-          </div>
-        </Card>
-      </div>
-
-      {/* Action Buttons */}
-      <div className="space-y-3">
-        <ObjectUploader
-          maxNumberOfFiles={1}
-          maxFileSize={104857600}
-          onGetUploadParameters={handleGetUploadParameters}
-          onComplete={handleUploadComplete}
-          buttonClassName="w-full py-3 rounded-xl font-medium disabled:opacity-50"
-        >
-          <div className="flex items-center justify-center space-x-2">
-            <Wand2 className="h-4 w-4" />
-            <span>{isProcessing ? "Processing..." : "Analyze & Process Video"}</span>
-          </div>
-        </ObjectUploader>
-        
-        <Button
-          variant="outline"
-          className="w-full py-3"
-          onClick={() => setLocation("/")}
-          disabled={isProcessing}
-          data-testid="button-cancel"
-        >
-          Cancel
-        </Button>
-      </div>
     </div>
   );
 }
